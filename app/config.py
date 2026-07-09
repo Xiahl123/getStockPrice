@@ -31,11 +31,25 @@ def _int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
-    itick_token: str
-    itick_ws_url: str
-    itick_max_subscriptions: int
+    root_dir: Path
+    tiger_id: str
+    tiger_account: str
+    tiger_license: str
+    tiger_private_key: str
+    tiger_private_key_path: Path | None
+    tiger_props_path: Path | None
+    tiger_secret_key: str
+    tiger_sandbox: bool
+    max_watches: int
     feishu_app_id: str
     feishu_app_secret: str
     feishu_alert_chat_id: str
@@ -52,10 +66,40 @@ def load_settings() -> Settings:
     if not data_file.is_absolute():
         data_file = ROOT_DIR / data_file
 
+    props_raw = os.getenv("TIGER_PROPS_PATH", "").strip()
+    props_path = None
+    if props_raw:
+        props_path = Path(props_raw)
+        if not props_path.is_absolute():
+            props_path = ROOT_DIR / props_path
+
+    key_path_raw = os.getenv("TIGER_PRIVATE_KEY_PATH", "").strip()
+    key_path = None
+    if key_path_raw:
+        key_path = Path(key_path_raw)
+        if not key_path.is_absolute():
+            key_path = ROOT_DIR / key_path
+
+    if not props_path and not (key_path or os.getenv("TIGER_PRIVATE_KEY", "").strip()):
+        raise RuntimeError(
+            "请配置老虎证券凭证：TIGER_PROPS_PATH，或 TIGER_PRIVATE_KEY_PATH / TIGER_PRIVATE_KEY"
+        )
+
+    if not props_path:
+        _require("TIGER_ID")
+        _require("TIGER_ACCOUNT")
+
     return Settings(
-        itick_token=_require("ITICK_TOKEN"),
-        itick_ws_url=os.getenv("ITICK_WS_URL", "wss://api-free.itick.org/stock").strip(),
-        itick_max_subscriptions=_int("ITICK_MAX_SUBSCRIPTIONS", 3),
+        root_dir=ROOT_DIR,
+        tiger_id=os.getenv("TIGER_ID", "").strip(),
+        tiger_account=os.getenv("TIGER_ACCOUNT", "").strip(),
+        tiger_license=os.getenv("TIGER_LICENSE", "").strip(),
+        tiger_private_key=os.getenv("TIGER_PRIVATE_KEY", "").strip(),
+        tiger_private_key_path=key_path,
+        tiger_props_path=props_path,
+        tiger_secret_key=os.getenv("TIGER_SECRET_KEY", "").strip(),
+        tiger_sandbox=_bool("TIGER_SANDBOX", False),
+        max_watches=_int("MAX_WATCHES", 30),
         feishu_app_id=_require("FEISHU_APP_ID"),
         feishu_app_secret=_require("FEISHU_APP_SECRET"),
         feishu_alert_chat_id=os.getenv("FEISHU_ALERT_CHAT_ID", "").strip(),

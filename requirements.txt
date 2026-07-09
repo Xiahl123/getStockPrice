@@ -1,4 +1,4 @@
 python-dotenv>=1.0.1
-websocket-client>=1.8.0
+tigeropen>=3.0.0
 lark-oapi>=1.4.0
 requests>=2.32.0

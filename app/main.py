@@ -9,8 +9,10 @@ import time
 from app.alert_engine import AlertEngine
 from app.config import load_settings
 from app.feishu_bot import FeishuBot
-from app.itick_client import ITickClient
 from app.store import WatchStore
+from app.tiger_client import TigerQuoteClient
+
+logger = logging.getLogger("main")
 
 
 def setup_logging(level: str) -> None:
@@ -24,15 +26,14 @@ def setup_logging(level: str) -> None:
 def main() -> None:
     settings = load_settings()
     setup_logging(settings.log_level)
-    logger = logging.getLogger("main")
 
     store = WatchStore(
         path=settings.data_file,
         default_percent=settings.default_alert_percent,
-        max_items=settings.itick_max_subscriptions,
+        max_items=settings.max_watches,
     )
 
-    itick_holder: dict[str, ITickClient | None] = {"client": None}
+    quote_holder: dict[str, TigerQuoteClient | None] = {"client": None}
 
     bot = FeishuBot(
         app_id=settings.feishu_app_id,
@@ -41,7 +42,7 @@ def main() -> None:
         alert_chat_id=settings.feishu_alert_chat_id,
         alert_receive_id_type=settings.feishu_alert_receive_id_type,
         webhook_url=settings.feishu_webhook_url,
-        get_itick=lambda: itick_holder["client"],
+        get_quote_client=lambda: quote_holder["client"],
     )
 
     engine = AlertEngine(
@@ -50,20 +51,19 @@ def main() -> None:
         cooldown_seconds=settings.alert_cooldown_seconds,
     )
 
-    itick = ITickClient(
-        token=settings.itick_token,
-        ws_url=settings.itick_ws_url,
+    tiger = TigerQuoteClient(
+        settings=settings,
         store=store,
         alert_engine=engine,
     )
-    itick_holder["client"] = itick
+    quote_holder["client"] = tiger
 
     stop_event = threading.Event()
 
     def _shutdown(signum, _frame) -> None:
         logger.info("收到信号 %s，准备退出...", signum)
         stop_event.set()
-        itick.stop()
+        tiger.stop()
 
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
@@ -72,7 +72,7 @@ def main() -> None:
         "服务启动 | 监控 %s 只 | 默认阈值 %s%% | 上限 %s",
         len(store.list()),
         settings.default_alert_percent,
-        settings.itick_max_subscriptions,
+        settings.max_watches,
     )
     if not settings.feishu_alert_chat_id and not settings.feishu_webhook_url:
         logger.warning(
@@ -81,7 +81,7 @@ def main() -> None:
         )
 
     bot.start()
-    itick.start()
+    tiger.start()
 
     while not stop_event.is_set():
         time.sleep(0.5)

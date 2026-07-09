@@ -7,6 +7,15 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
+def to_tiger_symbol(code: str, region: str) -> str:
+    """转换为老虎证券 subscribe_quote 使用的代码格式。"""
+    code = code.strip().upper()
+    region = region.strip().upper()
+    if region == "HK":
+        return code.zfill(5)
+    return code
+
+
 @dataclass
 class WatchItem:
     code: str
@@ -20,6 +29,10 @@ class WatchItem:
     @property
     def display(self) -> str:
         return f"{self.code.upper()}.{self.region.upper()}"
+
+    @property
+    def tiger_symbol(self) -> str:
+        return to_tiger_symbol(self.code, self.region)
 
 
 class WatchStore:
@@ -78,8 +91,8 @@ class WatchStore:
             )
             if item.key not in self._items and len(self._items) >= self.max_items:
                 raise ValueError(
-                    f"已达到订阅上限 {self.max_items}（iTick 免费版限制）。"
-                    "请先 /del 删除其他股票，或升级套餐并提高 ITICK_MAX_SUBSCRIPTIONS。"
+                    f"已达到监控上限 {self.max_items}。"
+                    "请先 /del 删除其他股票，或提高 MAX_WATCHES。"
                 )
             self._items[item.key] = item
             self.save()
@@ -103,6 +116,14 @@ class WatchStore:
             self.save()
             return item
 
-    def subscribe_params(self) -> str:
+    def tiger_symbols(self) -> List[str]:
         with self._lock:
-            return ",".join(item.key for item in self._items.values())
+            return [item.tiger_symbol for item in self._items.values()]
+
+    def get_by_tiger_symbol(self, symbol: str) -> Optional[WatchItem]:
+        sym = symbol.strip().upper()
+        with self._lock:
+            for item in self._items.values():
+                if item.tiger_symbol == sym:
+                    return item
+        return None

@@ -17,7 +17,7 @@ from lark_oapi.api.im.v1 import (
 from app.store import WatchStore
 
 if TYPE_CHECKING:
-    from app.itick_client import ITickClient
+    from app.tiger_client import TigerQuoteClient
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ HELP_TEXT = """股票监控机器人命令：
 
 说明：
 · 提醒条件：相对当日开盘价涨跌绝对值 ≥ 设定百分比
-· iTick 免费版最多同时监控 3 只股票"""
+· 行情来源：老虎证券 Open API（需已开通行情权限）"""
 
 
 class FeishuBot:
@@ -57,7 +57,7 @@ class FeishuBot:
         alert_chat_id: str = "",
         alert_receive_id_type: str = "chat_id",
         webhook_url: str = "",
-        get_itick: Optional[Callable[[], Optional["ITickClient"]]] = None,
+        get_quote_client: Optional[Callable[[], Optional["TigerQuoteClient"]]] = None,
     ) -> None:
         self.app_id = app_id
         self.app_secret = app_secret
@@ -65,7 +65,7 @@ class FeishuBot:
         self.alert_chat_id = alert_chat_id
         self.alert_receive_id_type = alert_receive_id_type
         self.webhook_url = webhook_url
-        self.get_itick = get_itick
+        self.get_quote_client = get_quote_client
         self._api = (
             lark.Client.builder()
             .app_id(app_id)
@@ -185,10 +185,10 @@ class FeishuBot:
             return
         self.send_text("chat_id", chat_id, text)
 
-    def _reload_itick(self) -> None:
-        if not self.get_itick:
+    def _reload_quote_subscriptions(self) -> None:
+        if not self.get_quote_client:
             return
-        client = self.get_itick()
+        client = self.get_quote_client()
         if client is not None:
             client.reload_subscriptions()
 
@@ -227,7 +227,7 @@ class FeishuBot:
                 item = self.store.add(code, region, percent)
             except ValueError as exc:
                 return str(exc)
-            self._reload_itick()
+            self._reload_quote_subscriptions()
             return (
                 f"已添加 {item.display}，阈值 {item.percent:g}%（相对开盘）。\n"
                 "订阅已刷新。"
@@ -240,7 +240,7 @@ class FeishuBot:
             ok = self.store.remove(code, region)
             if not ok:
                 return f"未找到 {code.upper()}.{region.upper()}"
-            self._reload_itick()
+            self._reload_quote_subscriptions()
             return f"已删除 {code.upper()}.{region.upper()}，订阅已刷新。"
 
         if cmd in {"/set", "set"}:

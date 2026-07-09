@@ -1,6 +1,7 @@
 .env
 .venv/
 venv/
+secrets/
 __pycache__/
 *.py[cod]
 .pytest_cache/
