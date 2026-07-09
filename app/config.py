@@ -59,6 +59,8 @@ class Settings:
     alert_cooldown_seconds: int
     data_file: Path
     log_level: str
+    host: str
+    port: int
 
 
 def load_settings() -> Settings:
@@ -111,4 +113,6 @@ def load_settings() -> Settings:
         alert_cooldown_seconds=_int("ALERT_COOLDOWN_SECONDS", 300),
         data_file=data_file,
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
+        host=os.getenv("HOST", "0.0.0.0").strip(),
+        port=_int("PORT", 8080),
     )

@@ -9,6 +9,7 @@ import time
 from app.alert_engine import AlertEngine
 from app.config import load_settings
 from app.feishu_bot import FeishuBot
+from app.http_server import HttpServer
 from app.store import WatchStore
 from app.tiger_client import TigerQuoteClient
 
@@ -34,6 +35,15 @@ def main() -> None:
     )
 
     quote_holder: dict[str, TigerQuoteClient | None] = {"client": None}
+
+    http = HttpServer(
+        host=settings.host,
+        port=settings.port,
+        status_provider=lambda: {
+            "watches": len(store.list()),
+            "max_watches": settings.max_watches,
+        },
+    )
 
     bot = FeishuBot(
         app_id=settings.feishu_app_id,
@@ -64,15 +74,18 @@ def main() -> None:
         logger.info("收到信号 %s，准备退出...", signum)
         stop_event.set()
         tiger.stop()
+        http.stop()
 
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
     logger.info(
-        "服务启动 | 监控 %s 只 | 默认阈值 %s%% | 上限 %s",
+        "服务启动 | 监控 %s 只 | 默认阈值 %s%% | 上限 %s | HTTP %s:%s",
         len(store.list()),
         settings.default_alert_percent,
         settings.max_watches,
+        settings.host,
+        settings.port,
     )
     if not settings.feishu_alert_chat_id and not settings.feishu_webhook_url:
         logger.warning(
@@ -82,6 +95,7 @@ def main() -> None:
 
     bot.start()
     tiger.start()
+    http.start()
 
     while not stop_event.is_set():
         time.sleep(0.5)
